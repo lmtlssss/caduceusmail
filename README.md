@@ -1,8 +1,9 @@
-# ☤CaduceusMail 5.2.0
+# ☤CaduceusMail 5.1.1
 
-☤CaduceusMail is an OpenClaw skill bundle and operational repo for turning one Microsoft 365 mailbox plus one Cloudflare zone into a programmable mail control plane.
+☤CaduceusMail lets your OpenClaw automate an enterprise-level communications stack with one domain/mailbox combo.
+Inbox-reliability optimization engine: automates sender trust hardening, identity rotation, and scale-ready outreach/support flows designed to keep your mail out of junk.
 
-Version 5.2.0 keeps that shipping surface and adds scanner-facing coherence: full env/bin declarations in skill metadata, explicit privilege/persistence disclosure, and regression coverage to prevent metadata drift.
+Version 5.1.1 keeps that shipping surface and restores the high-impact 4.2.0 product voice while preserving scanner-facing coherence: full env/bin declarations in skill metadata, explicit privilege/persistence disclosure, and regression coverage to prevent metadata drift.
 
 ## What the stack controls
 
@@ -14,7 +15,7 @@ Version 5.2.0 keeps that shipping surface and adds scanner-facing coherence: ful
 
 That means alias lane creation, retirement, and verification happen as one operational flow instead of being scattered across separate admin panels.
 
-## What is in 5.2.0
+## What is in 5.1.1
 
 The repo now includes:
 

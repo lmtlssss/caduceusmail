@@ -5,9 +5,21 @@ homepage: https://github.com/lmtlssss/caduceusmail
 metadata: {"openclaw":{"emoji":"☤","skillKey":"caduceusmail","requires":{"bins":["bash","pwsh","python3","jq","rg"],"env":["ENTRA_TENANT_ID","ENTRA_CLIENT_ID","ENTRA_CLIENT_SECRET","EXCHANGE_DEFAULT_MAILBOX","EXCHANGE_ORGANIZATION","ORGANIZATION_DOMAIN","CLOUDFLARE_API_TOKEN","CLOUDFLARE_ZONE_ID"]}}}
 ---
 
-# ☤CaduceusMail 5.2.0
+# ☤CaduceusMail 5.1.1
 
-☤CaduceusMail turns one Microsoft 365 mailbox and one Cloudflare zone into an operator controlled mail fabric.
+Inbox-reliability optimization engine: automates sender trust hardening, identity rotation, and scale-ready outreach/support flows designed to keep your mail out of junk.
+
+☤CaduceusMail is a shippable skill for enterprise-grade alias/domain control on top of a single Microsoft 365 mailbox and Cloudflare DNS zone.
+
+## Innovation Summary
+
+This skill makes one mailbox + one domain behave like an enterprise email control plane by coordinating:
+
+* Entra/Graph authorization
+* Exchange transport + alias lifecycle
+* Cloudflare DNS/auth posture
+
+That means plug-and-play lane creation, verification, and optimization without mailbox sprawl.
 
 ## What this skill can do
 
@@ -18,6 +30,13 @@ metadata: {"openclaw":{"emoji":"☤","skillKey":"caduceusmail","requires":{"bins
 * verify lane readiness
 * retire lanes with reply continuity
 * generate awareness snapshots and machine readable state artifacts
+
+## Hard Rules
+
+* never send group emails from one operation
+* never send one message to multiple recipients at once
+* treat no-reply lanes as intentional non-receiving identities (no MX + SPF `-all` profile)
+* delete defaults are reply-safe: aliases are retired with fallback continuity unless explicitly hard-removed
 
 ## First move
 

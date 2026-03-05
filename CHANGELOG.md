@@ -1,8 +1,8 @@
 # Changelog
 
-## 5.2.0
+## 5.1.1
 
-Security and metadata coherence release for OpenClaw scan alignment.
+Wording/design restoration release that brings back the high-impact 4.2.0 product voice while keeping the scan-hardening changes.
 
 ### Changed
 
@@ -11,6 +11,7 @@ Security and metadata coherence release for OpenClaw scan alignment.
 * added explicit privilege, persistence, module-install, and external-script-resolution disclosures in `SKILL.md`
 * documented canonical env keys and trust boundaries in `README.md` and `docs/openclaw.md`
 * added `tests/test_skill_frontmatter.py` coverage that enforces sensitive env and binary declarations
+* restored 4.2.0-style design language and positioning in `SKILL.md` and `README.md` (including inbox-reliability optimization messaging and hard rules framing)
 
 ## 5.1.0
 
