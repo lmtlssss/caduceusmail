@@ -2,179 +2,83 @@
 name: caduceusmail
 description: "☤CaduceusMail lets your OpenClaw automate an enterprise-level communications stack with one domain/mailbox combo."
 homepage: https://github.com/lmtlssss/caduceusmail
-metadata: {"openclaw":{"emoji":"📬","requires":{"bins":["bash","pwsh","python3","jq","rg"],"env":["ENTRA_CLIENT_ID","ENTRA_TENANT_ID","ENTRA_CLIENT_SECRET","EXCHANGE_DEFAULT_MAILBOX","EXCHANGE_ORGANIZATION","CLOUDFLARE_API_TOKEN","CLOUDFLARE_ZONE_ID"]}}}
+metadata: {"openclaw":{"emoji":"☤","skillKey":"caduceusmail","requires":{"bins":["bash","python3","jq"],"env":["ENTRA_CLIENT_ID","ENTRA_TENANT_ID","EXCHANGE_DEFAULT_MAILBOX"]}}}
 ---
 
-# ☤CaduceusMail
+# ☤CaduceusMail 5.1.0
 
-Inbox-reliability optimization engine: automates sender trust hardening, identity rotation, and scale-ready outreach/support flows designed to keep your mail out of junk.
+☤CaduceusMail turns one Microsoft 365 mailbox and one Cloudflare zone into an operator controlled mail fabric.
 
-☤CaduceusMail is a shippable skill for enterprise-grade alias/domain control on top of a single Microsoft 365 mailbox and Cloudflare DNS zone.
+## What this skill can do
 
-## Innovation Summary
+* bootstrap Graph and Exchange auth posture
+* audit credential and DNS posture
+* optimize root mail records
+* provision reply and no reply lanes under subdomains
+* verify lane readiness
+* retire lanes with reply continuity
+* generate awareness snapshots and machine readable state artifacts
 
-This skill makes one mailbox + one domain behave like an enterprise email control plane by coordinating:
-- Entra/Graph authorization
-- Exchange transport + alias lifecycle
-- Cloudflare DNS/auth posture
+## First move
 
-That means plug-and-play lane creation, verification, and optimization without mailbox sprawl.
-
-## What It Does
-
-- Bootstraps Microsoft Graph + Exchange app permissions with one interactive sign-in.
-- Audits credential posture across Graph, Exchange RBAC, and Cloudflare token scope.
-- Optimizes root-domain mail posture (SPF, MX, DMARC) with safe defaults.
-- Provisions reply-capable or no-reply alias lanes under subdomains.
-- Verifies lane readiness (accepted domain, alias attach, Graph state, DNS profile).
-- Stores operation outputs atomically for resumable state and operator visibility.
-
-## Hard Rules
-
-- Never send group emails from one operation.
-- Never send one message to multiple recipients at once.
-- Treat no-reply lanes as intentional non-receiving identities (no MX + SPF -all profile).
-- Delete defaults are reply-safe: aliases are retired with fallback continuity unless explicitly hard-removed.
-
-## Quick Start
+Run the doctor before you do anything theatrical.
 
 ```bash
-# 1) Copy strict credential templates
+python3 {baseDir}/scripts/caduceusmail-doctor.py --json
+```
+
+## Quick start
+
+```bash
 cp {baseDir}/credentials/entra.txt.template {baseDir}/credentials/entra.txt
 cp {baseDir}/credentials/cloudflare.txt.template {baseDir}/credentials/cloudflare.txt
 
-# 2) Edit values in both .txt files
-
-# 3) Run ☤CaduceusMail (autoloads credentials/*.txt)
-{baseDir}/scripts/caduceusmail.sh \
-  --organization-domain "northorizon.ca"
+bash {baseDir}/scripts/caduceusmail.sh \
+  --organization-domain "example.com" \
+  --mailbox "ops@example.com" \
+  --bootstrap-auth-mode device
 ```
 
-## Dry Run First
+## Daily headless run after bootstrap
 
 ```bash
-{baseDir}/scripts/caduceusmail.sh \
-  --tenant-id "<entra-tenant-id>" \
-  --client-id "<entra-app-client-id>" \
-  --organization-domain "northorizon.ca" \
-  --mailbox "john@northorizon.ca" \
-  --dry-run
+bash {baseDir}/scripts/caduceusmail.sh \
+  --organization-domain "example.com" \
+  --mailbox "ops@example.com" \
+  --skip-m365-bootstrap
 ```
 
-## Lane Provisioning
+## Lane operations
 
 ```bash
-# Reply-capable lane
 python3 {baseDir}/scripts/email_alias_fabric_ops.py provision-lane \
-  --mailbox "john@northorizon.ca" \
+  --mailbox "ops@example.com" \
   --local "support" \
-  --domain "support-reply.northorizon.ca" \
-  --send-to "edge0100@icloud.com"
+  --domain "support-reply.example.com"
 
-# No-reply lane
-python3 {baseDir}/scripts/email_alias_fabric_ops.py provision-lane \
-  --mailbox "john@northorizon.ca" \
-  --local "support" \
-  --domain "support-noreply.northorizon.ca" \
-  --no-reply
-```
-
-## Retire Lane With Reply Fallback (Recommended)
-
-```bash
-# Keeps reply continuity by default (fallback mailbox defaults to --mailbox)
-python3 {baseDir}/scripts/email_alias_fabric_ops.py retire-lane \
-  --mailbox "john@northorizon.ca" \
-  --alias-email "support@support-reply.northorizon.ca"
-
-# Explicitly move fallback replies to another mailbox
-python3 {baseDir}/scripts/email_alias_fabric_ops.py retire-lane \
-  --mailbox "john@northorizon.ca" \
-  --alias-email "support@support-reply.northorizon.ca" \
-  --fallback-mailbox "inbox@northorizon.ca"
-```
-
-Hard-delete (no fallback continuity):
-
-```bash
-python3 {baseDir}/scripts/email_alias_fabric_ops.py control-json --ops-json \
-  '{"action":"alias.remove","mailbox":"john@northorizon.ca","email":"support@support-reply.northorizon.ca","preserve_reply":false}'
-```
-
-Important:
-- Fallback continuity requires the alias domain to remain routable (accepted domain + inbound DNS/MX where applicable).
-- If you remove the domain plane itself, replies to that old address will still fail.
-
-## Verify Lane
-
-```bash
 python3 {baseDir}/scripts/email_alias_fabric_ops.py verify-lane \
-  --mailbox "john@northorizon.ca" \
-  --alias-email "support@support-reply.northorizon.ca" \
-  --domain "support-reply.northorizon.ca"
+  --mailbox "ops@example.com" \
+  --alias-email "support@support-reply.example.com" \
+  --domain "support-reply.example.com"
+
+python3 {baseDir}/scripts/email_alias_fabric_ops.py retire-lane \
+  --mailbox "ops@example.com" \
+  --alias-email "support@support-reply.example.com"
 ```
 
-## Sandbox Smoke Test
+## Probe sending bridge
+
+The skill ships a real `entra-exchange.sh` bridge used by probe sends. It routes to a Graph app only helper and uses `/users/{mailbox}/sendMail` with the lane alias in the `from` field.
+
+## Sandbox and CI smoke path
 
 ```bash
 bash {baseDir}/scripts/caduceusmail-sandbox-smoke.sh
 ```
 
-## Credentials and Scope Notes
+That smoke flow uses `--simulate-bootstrap`, so it does not require PowerShell on the test host.
 
-- Strict autoload format:
-  - File names: `credentials/entra.txt`, `credentials/cloudflare.txt`
-  - First non-empty line must be: `CADUCEUSMAIL_CREDENTIALS_V1`
-  - Remaining lines must be strict `KEY=VALUE` pairs (no unsupported keys)
-  - Templates are included in this skill folder as `*.txt.template`
-- `caduceusmail-bootstrap.ps1.txt` is a publish-safe PowerShell source template.
-- At runtime, `caduceusmail.sh` materializes it into a temporary `.ps1` file and executes it.
-- Override paths with:
-  - `CADUCEUSMAIL_BOOTSTRAP_SCRIPT`
-  - `CADUCEUSMAIL_FABRIC_SCRIPT`
-  - `CADUCEUSMAIL_ENV_FILE`
-  - `CADUCEUSMAIL_INTEL_DIR`
-  - `CADUCEUSMAIL_CREDENTIALS_DIR`
-  - `CADUCEUSMAIL_ALLOW_EXTERNAL_SCRIPT_RESOLUTION` (default: disabled)
+## OpenClaw runtime pattern
 
-Delete behavior toggles:
-- `EMAIL_ALIAS_FABRIC_DELETE_PRESERVE_REPLY_DEFAULT=true|false` (default: `true`)
-- `EMAIL_ALIAS_FABRIC_FALLBACK_MAILBOX=<mailbox@domain>` (optional default fallback target)
-
-Persistence toggles:
-- `--persist-env` enables writing non-secret runtime keys to `ENV_FILE`.
-- `--persist-secrets` enables writing secret values to `ENV_FILE` (opt-in only).
-- Default mode is non-persistent: no `.env` writes.
-
-## Sign-In Model (Important)
-
-- First-time bootstrap (permission grants/admin consent/Exchange RBAC):
-  - Interactive PowerShell sign-in is typically required.
-- Steady-state operations after bootstrap is complete:
-  - Fully headless is supported with `ENTRA_CLIENT_SECRET` and `--skip-m365-bootstrap`.
-- Recommended production flow:
-  - Perform one admin bootstrap once, then run headless for daily operations.
-
-## Security Posture (v1.0.0)
-
-- External script resolution is scope-locked by default.
-- Credential autodiscovery is scope-locked to this skill directory unless explicitly overridden.
-- Bootstrap artifacts redact generated client-secret values before writing state JSON.
-- Intel/state output files are written with restrictive permissions (`700` dir, `600` files where supported).
-
-## Benefits
-
-- One mailbox can run many clean identity lanes safely.
-- Domain and alias lifecycle can be automated end-to-end.
-- Full state awareness reduces operator guesswork.
-- Useful for support, sales, outreach, and transactional messaging with explicit no-reply/reply modes.
-- Built for personalized, high-volume outreach with controllable identity variables (display name, alias, subdomain).
-- Reduces spam-risk behavior by enforcing single-recipient operations and lane-specific posture.
-
-## Outcome
-
-☤CaduceusMail provides Fortune-500-style email operations from a lightweight stack:
-- one domain
-- one mailbox
-- one bootstrap command
-- full lifecycle control
+Prefer secret injection through `skills.entries.caduceusmail.env` over editing files in a sandbox. See `examples/openclaw.config.json5` and `docs/openclaw.md`.
+Persistence is opt-in through `--persist-env` and `--persist-secrets`.

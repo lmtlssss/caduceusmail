@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exchange + Cloudflare email alias fabric ops (safe dry-run by default)."""
+"""☤CaduceusMail — Exchange + Cloudflare email alias fabric ops (safe dry-run by default)."""
 
 from __future__ import annotations
 
@@ -37,20 +37,18 @@ def resolve_entra_exchange_script() -> Path:
     override = os.environ.get("ENTRA_EXCHANGE_SCRIPT", "").strip()
     if override:
         return Path(override).expanduser()
-    # Scope-locked default: only a local sibling script is auto-resolved.
-    local_default = SCRIPT_DIR / "entra-exchange.sh"
-    if local_default.exists():
-        return local_default
-    # Optional explicit opt-in for legacy shared path discovery.
-    if os.environ.get("CADUCEUSMAIL_ALLOW_EXTERNAL_SCRIPT_RESOLUTION", "").strip().lower() in {"1", "true", "yes", "on"}:
-        candidates = [
-            Path.home() / ".openclaw" / "workspace" / "skills" / "entra-exchange" / "scripts" / "entra-exchange.sh",
-            Path("/root/.openclaw/workspace/skills/entra-exchange/scripts/entra-exchange.sh"),
-        ]
-        for c in candidates:
-            if c.exists():
-                return c
-    return local_default
+    local_script = SCRIPT_DIR / "entra-exchange.sh"
+    if local_script.exists():
+        return local_script
+
+    # Security default: do not execute scripts outside this skill directory unless explicitly enabled.
+    allow_external = os.environ.get("CADUCEUSMAIL_ALLOW_EXTERNAL_SCRIPT_RESOLUTION", "").strip().lower() in {"1", "true", "yes", "on"}
+    if allow_external:
+        for parent in [SCRIPT_DIR, *SCRIPT_DIR.parents]:
+            candidate = parent / "skills" / "entra-exchange" / "scripts" / "entra-exchange.sh"
+            if candidate.exists():
+                return candidate
+    return local_script
 
 
 ENTRA_EXCHANGE_SCRIPT = resolve_entra_exchange_script()
@@ -59,6 +57,7 @@ ENV_FILES: list[Path] = []
 if os.environ.get("CADUCEUSMAIL_ENV_FILE", "").strip():
     ENV_FILES.append(Path(os.environ["CADUCEUSMAIL_ENV_FILE"]).expanduser())
 ENV_FILES.extend([
+    DEFAULT_STATE_ROOT / ".env",
     SCRIPT_DIR.parent / ".env",
 ])
 
@@ -198,7 +197,7 @@ def base_domain(default_mailbox: str) -> str:
         return explicit
     if "@" in default_mailbox:
         return default_mailbox.split("@", 1)[1].strip().lower()
-    return "northorizon.ca"
+    return "example.com"
 
 
 def exchange_org(default_domain: str) -> str:
@@ -263,7 +262,7 @@ def parse_intent(intent: dict[str, Any], default_mailbox: str, default_domain: s
         operation = "create"
 
     mailbox = parse_kv(action, "mailbox").lower() or default_mailbox.lower()
-    prefix = slug(parse_kv(action, "prefix") or parse_kv(action, "name") or "northorizon")
+    prefix = slug(parse_kv(action, "prefix") or parse_kv(action, "name") or "lane")
     local_part = normalize_local(parse_kv(action, "local"))
     domain = normalize_domain(parse_kv(action, "domain"))
     subdomain = (parse_kv(action, "subdomain") or "").strip().lower().strip(".")
@@ -974,7 +973,7 @@ def ensure_domain_accepted(target_domain: str, default_domain: str, auto_domain:
 def ensure_dns_marker(fqdn: str, ttl: int, default_domain: str) -> dict[str, Any]:
     if fqdn == default_domain:
         return {"ok": True, "status": "skipped_root_domain"}
-    marker = os.environ.get("EMAIL_ALIAS_FABRIC_MARKER_TXT", "lmtlss-alias-fabric").strip() or "lmtlss-alias-fabric"
+    marker = os.environ.get("EMAIL_ALIAS_FABRIC_MARKER_TXT", "caduceusmail-alias-fabric").strip() or "caduceusmail-alias-fabric"
     query = urllib.parse.urlencode({"name": fqdn, "type": "TXT"})
     existing = cloudflare_request("GET", f"/dns_records?{query}")
     if not existing.get("success"):
@@ -1100,7 +1099,7 @@ def ensure_subdomain_mail_dns(fqdn: str, ttl: int, default_domain: str, no_reply
     if fqdn == default_domain:
         return {"ok": True, "status": "skipped_root_domain", "no_reply": no_reply}
 
-    marker_txt = os.environ.get("EMAIL_ALIAS_FABRIC_MARKER_TXT", "lmtlss-alias-fabric").strip() or "lmtlss-alias-fabric"
+    marker_txt = os.environ.get("EMAIL_ALIAS_FABRIC_MARKER_TXT", "caduceusmail-alias-fabric").strip() or "caduceusmail-alias-fabric"
     mx_target = os.environ.get("EMAIL_ALIAS_FABRIC_MX_TARGET", "").strip().lower()
     if not mx_target:
         mx_target = f"{default_domain.replace('.', '-')}.mail.protection.outlook.com"
@@ -1525,7 +1524,7 @@ def cloudflare_domain_dns_summary(fqdn: str) -> dict[str, Any]:
         "txt_values": txt_values,
         "has_spf_fail_all": any("v=spf1 -all" in v.lower() for v in txt_values),
         "has_spf_o365": any("include:spf.protection.outlook.com" in v.lower() for v in txt_values),
-        "has_marker": any("lmtlss-alias-fabric" in v.lower() for v in txt_values),
+        "has_marker": any("caduceusmail-alias-fabric" in v.lower() for v in txt_values),
         "has_dmarc": any("v=dmarc1" in v.lower() for v in txt_values),
         "records": rows,
     }
@@ -1779,7 +1778,7 @@ def provision_lane(mailbox: str, local_part: str, domain: str, no_reply: bool, t
 
 
 def awareness_snapshot(mailbox: str, domains: list[str] | None = None) -> dict[str, Any]:
-    mailbox = (mailbox or "").strip().lower() or os.environ.get("EXCHANGE_DEFAULT_MAILBOX", "").strip().lower() or "john@northorizon.ca"
+    mailbox = (mailbox or "").strip().lower() or os.environ.get("EXCHANGE_DEFAULT_MAILBOX", "").strip().lower() or "ops@example.com"
     default_domain = base_domain(mailbox)
     aliases = exchange_get_mailbox_aliases(default_domain, mailbox)
     accepted = exchange_get_accepted_domains(default_domain)
@@ -2025,7 +2024,7 @@ def execute_control_op(op: dict[str, Any], dry_run: bool, default_mailbox: str, 
 
 
 def execute_control(ops: list[dict[str, Any]], dry_run: bool) -> dict[str, Any]:
-    default_mailbox = os.environ.get("EXCHANGE_DEFAULT_MAILBOX", "").strip().lower() or "john@northorizon.ca"
+    default_mailbox = os.environ.get("EXCHANGE_DEFAULT_MAILBOX", "").strip().lower() or "ops@example.com"
     default_domain = base_domain(default_mailbox)
     results: list[dict[str, Any]] = []
     ok_all = True
@@ -2050,7 +2049,7 @@ def execute_control(ops: list[dict[str, Any]], dry_run: bool) -> dict[str, Any]:
 
 
 def execute_intent(intent: dict[str, Any], dry_run: bool) -> dict[str, Any]:
-    default_mailbox = os.environ.get("EXCHANGE_DEFAULT_MAILBOX", "").strip().lower() or "john@northorizon.ca"
+    default_mailbox = os.environ.get("EXCHANGE_DEFAULT_MAILBOX", "").strip().lower() or "ops@example.com"
     default_domain = base_domain(default_mailbox)
     parsed = parse_intent(intent, default_mailbox=default_mailbox, default_domain=default_domain)
 
@@ -2085,7 +2084,7 @@ def execute_intent(intent: dict[str, Any], dry_run: bool) -> dict[str, Any]:
 
 
 def self_test() -> dict[str, Any]:
-    default_mailbox = os.environ.get("EXCHANGE_DEFAULT_MAILBOX", "").strip().lower() or "john@northorizon.ca"
+    default_mailbox = os.environ.get("EXCHANGE_DEFAULT_MAILBOX", "").strip().lower() or "ops@example.com"
     default_domain = base_domain(default_mailbox)
     accepted_probe = exchange_get_accepted_domains(default_domain)
     graph_probe = list_domains_graph()
@@ -2110,7 +2109,7 @@ def self_test() -> dict[str, Any]:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Email alias fabric ops")
+    parser = argparse.ArgumentParser(description="☤CaduceusMail — email alias fabric ops")
     sub = parser.add_subparsers(dest="command")
 
     run = sub.add_parser("execute-intent")

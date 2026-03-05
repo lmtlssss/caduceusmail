@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
-umask 077
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 FABRIC_SCRIPT="${CADUCEUSMAIL_FABRIC_SCRIPT:-${SCRIPT_DIR}/email_alias_fabric_ops.py}"
 DEFAULT_CREDENTIALS_DIR="$(cd -- "${SCRIPT_DIR}/.." && pwd)/credentials"
 CREDENTIALS_DIR="${CADUCEUSMAIL_CREDENTIALS_DIR:-${DEFAULT_CREDENTIALS_DIR}}"
-DEFAULT_ENV_FILE="${HOME}/.openclaw/.env"
+REPO_ROOT="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
+VERSION="$(cat "${REPO_ROOT}/VERSION" 2>/dev/null || echo 5.1.0)"
+DEFAULT_ENV_FILE="${HOME}/.caduceusmail/.env"
 ENV_FILE="${CADUCEUSMAIL_ENV_FILE:-${DEFAULT_ENV_FILE}}"
+
 DEFAULT_INTEL_DIR="${HOME}/.caduceusmail/intel"
 INTEL_DIR="${CADUCEUSMAIL_INTEL_DIR:-${DEFAULT_INTEL_DIR}}"
-PERSIST_ENV="${CADUCEUSMAIL_PERSIST_ENV:-0}"
-PERSIST_SECRETS="${CADUCEUSMAIL_PERSIST_SECRETS:-0}"
 PS_BOOTSTRAP="${CADUCEUSMAIL_BOOTSTRAP_SCRIPT:-}"
 TEMP_BOOTSTRAP=""
 
@@ -24,7 +24,7 @@ trap cleanup EXIT
 
 usage() {
   cat <<'EOF'
-caduceusmail: one-line Microsoft365 + Cloudflare stack bootstrap.
+☤ caduceusmail: one-line Microsoft365 + Cloudflare stack bootstrap.
 
 Usage:
   bash ./scripts/caduceusmail.sh \
@@ -42,18 +42,32 @@ Optional:
   --exchange-org <exchange-org-domain>          (default: organization-domain)
   --cloudflare-token <token>                    (or CLOUDFLARE_API_TOKEN/CF_API_TOKEN)
   --cloudflare-zone-id <zone-id>                (or CLOUDFLARE_ZONE_ID/CF_ZONE_ID)
-  --rotate-client-secret                        (create new app secret and write to env)
+  --rotate-client-secret                        (create new app secret)
   --secret-lifetime-days <days>                 (default: 365)
+  --bootstrap-auth-mode <auto|browser|device>   (default: auto; device recommended in sandboxes/VPS)
+  --bootstrap-admin-upn <admin@domain>          (optional hint for browser-based Exchange login)
   --set-accepted-domain-internal-relay          (Exchange accepted domain tuning)
   --enable-accepted-domain-match-subdomains     (Exchange accepted domain tuning)
   --dry-run                                     (audit only; no DNS/domain mutation)
   --force                                       (allow root-DNS overwrite paths where safe)
   --skip-m365-bootstrap                         (skip PowerShell auth/permission bootstrap)
   --skip-stack-optimize                         (skip email fabric optimize pass)
-  --persist-env                                 (persist non-secret runtime keys to ENV_FILE)
-  --persist-secrets                             (persist secrets to ENV_FILE; only valid with --persist-env)
-  --no-persist-env                              (explicitly disable ENV_FILE writes; default)
+  --simulate-bootstrap                          (skip pwsh and emit a deterministic bootstrap result)
+  --persist-env                                 (persist non-secret runtime keys to env file)
+  --persist-secrets                             (persist secrets/tokens to env file; implies --persist-env)
+  --version                                     (print version)
 EOF
+}
+
+simulate_bootstrap_json() {
+  local mode="$1"
+  local sign_in_events="1"
+  local sso_mode="interactive_browser_simulated"
+  if [[ "${mode}" == "device" || "${mode}" == "auto" ]]; then
+    sign_in_events="2"
+    sso_mode="device_code_simulated"
+  fi
+  jq -cn --arg version "${VERSION}" --arg mode "${mode}" --arg sso_mode "${sso_mode}" --argjson sign_in_events "${sign_in_events}" '{ok:true,toolVersion:$version,simulated:true,bootstrapAuthMode:$mode,steps:["simulation_mode","graph_connected_simulated","exchange_connected_simulated","exchange_rbac_ready_simulated"],sign_in_events:$sign_in_events,sso_mode:$sso_mode}'
 }
 
 require_cmd() {
@@ -162,7 +176,7 @@ autoload_credentials() {
     loaded="1"
   fi
   if [[ "${loaded}" == "1" ]]; then
-    echo "[caduceusmail] loaded credentials from ${CREDENTIALS_DIR}"
+    echo "[☤ caduceusmail] loaded credentials from ${CREDENTIALS_DIR}"
   fi
 }
 
@@ -171,8 +185,7 @@ upsert_env_key() {
   local value="$2"
   mkdir -p "$(dirname "${ENV_FILE}")"
   touch "${ENV_FILE}"
-  chmod 600 "${ENV_FILE}" 2>/dev/null || true
-  if rg -q "^${key}=" "${ENV_FILE}"; then
+  if grep -q "^${key}=" "${ENV_FILE}"; then
     sed -i "s|^${key}=.*|${key}=${value}|" "${ENV_FILE}"
   else
     printf '%s=%s\n' "${key}" "${value}" >> "${ENV_FILE}"
@@ -188,12 +201,17 @@ CF_TOKEN=""
 CF_ZONE_ID=""
 ROTATE_SECRET="0"
 SECRET_LIFETIME_DAYS="365"
+BOOTSTRAP_AUTH_MODE="auto"
+BOOTSTRAP_ADMIN_UPN=""
 SET_INTERNAL_RELAY="0"
 ENABLE_MATCH_SUBDOMAINS="0"
 DRY_RUN="0"
 FORCE="0"
 SKIP_M365="0"
 SKIP_OPTIMIZE="0"
+SIMULATE_BOOTSTRAP="0"
+PERSIST_ENV="0"
+PERSIST_SECRETS="0"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -207,15 +225,18 @@ while [[ $# -gt 0 ]]; do
     --cloudflare-zone-id) CF_ZONE_ID="${2:-}"; shift 2 ;;
     --rotate-client-secret) ROTATE_SECRET="1"; shift ;;
     --secret-lifetime-days) SECRET_LIFETIME_DAYS="${2:-}"; shift 2 ;;
+    --bootstrap-auth-mode) BOOTSTRAP_AUTH_MODE="${2:-}"; shift 2 ;;
+    --bootstrap-admin-upn) BOOTSTRAP_ADMIN_UPN="${2:-}"; shift 2 ;;
     --set-accepted-domain-internal-relay) SET_INTERNAL_RELAY="1"; shift ;;
     --enable-accepted-domain-match-subdomains) ENABLE_MATCH_SUBDOMAINS="1"; shift ;;
     --dry-run) DRY_RUN="1"; shift ;;
     --force) FORCE="1"; shift ;;
     --skip-m365-bootstrap) SKIP_M365="1"; shift ;;
     --skip-stack-optimize) SKIP_OPTIMIZE="1"; shift ;;
+    --simulate-bootstrap) SIMULATE_BOOTSTRAP="1"; shift ;;
     --persist-env) PERSIST_ENV="1"; shift ;;
     --persist-secrets) PERSIST_SECRETS="1"; shift ;;
-    --no-persist-env) PERSIST_ENV="0"; PERSIST_SECRETS="0"; shift ;;
+    --version) printf "%s\n" "${VERSION}"; exit 0 ;;
     -h|--help) usage; exit 0 ;;
     *)
       echo "Unknown arg: $1" >&2
@@ -226,11 +247,6 @@ while [[ $# -gt 0 ]]; do
 done
 
 autoload_credentials
-
-if [[ "${PERSIST_ENV}" != "1" && "${PERSIST_SECRETS}" == "1" ]]; then
-  echo "--persist-secrets requires --persist-env" >&2
-  exit 1
-fi
 
 if [[ -z "${TENANT_ID}" ]]; then TENANT_ID="${ENTRA_TENANT_ID:-}"; fi
 if [[ -z "${CLIENT_ID}" ]]; then CLIENT_ID="${ENTRA_CLIENT_ID:-}"; fi
@@ -248,10 +264,16 @@ if [[ -z "${TENANT_ID}" || -z "${CLIENT_ID}" || -z "${ORG_DOMAIN}" || -z "${MAIL
   exit 1
 fi
 
-require_cmd pwsh
+if [[ "${PERSIST_SECRETS}" == "1" && "${PERSIST_ENV}" != "1" ]]; then
+  PERSIST_ENV="1"
+  echo "[☤ caduceusmail] --persist-secrets enabled; auto-enabling --persist-env"
+fi
+
 require_cmd python3
 require_cmd jq
-require_cmd rg
+if [[ "${SKIP_M365}" != "1" && "${SIMULATE_BOOTSTRAP}" != "1" ]]; then
+  require_cmd pwsh
+fi
 
 resolve_bootstrap_script
 if [[ ! -f "${FABRIC_SCRIPT}" ]]; then
@@ -263,44 +285,52 @@ if [[ -z "${EXCHANGE_ORG}" ]]; then
   EXCHANGE_ORG="${ORG_DOMAIN}"
 fi
 if [[ "${PERSIST_ENV}" == "1" ]]; then
-  echo "[caduceusmail] persisting runtime keys to ${ENV_FILE}"
+  echo "[☤ caduceusmail] persisting non-secret env keys to ${ENV_FILE}"
   upsert_env_key "ENTRA_TENANT_ID" "${TENANT_ID}"
   upsert_env_key "ENTRA_CLIENT_ID" "${CLIENT_ID}"
   upsert_env_key "EXCHANGE_DEFAULT_MAILBOX" "${MAILBOX}"
   upsert_env_key "EXCHANGE_ORGANIZATION" "${EXCHANGE_ORG}"
-  if [[ "${PERSIST_SECRETS}" == "1" ]]; then
-    if [[ -n "${CF_TOKEN}" ]]; then upsert_env_key "CLOUDFLARE_API_TOKEN" "${CF_TOKEN}"; fi
-    if [[ -n "${CF_ZONE_ID}" ]]; then upsert_env_key "CLOUDFLARE_ZONE_ID" "${CF_ZONE_ID}"; fi
-  fi
-else
-  echo "[caduceusmail] running in non-persistent mode (no .env writes)"
+fi
+if [[ "${PERSIST_SECRETS}" == "1" ]]; then
+  echo "[☤ caduceusmail] persisting secret env keys to ${ENV_FILE}"
+  if [[ -n "${CF_TOKEN}" ]]; then upsert_env_key "CLOUDFLARE_API_TOKEN" "${CF_TOKEN}"; fi
+  if [[ -n "${CF_ZONE_ID}" ]]; then upsert_env_key "CLOUDFLARE_ZONE_ID" "${CF_ZONE_ID}"; fi
 fi
 
 bootstrap_out='{"ok":true,"skipped":true}'
 if [[ "${SKIP_M365}" != "1" ]]; then
-  echo "[caduceusmail] running Microsoft365 permission bootstrap (interactive SSO)"
-  ps_args=(
-    -NoLogo -NoProfile
-    -File "${PS_BOOTSTRAP}"
-    -TenantId "${TENANT_ID}"
-    -ClientId "${CLIENT_ID}"
-    -OrganizationDomain "${ORG_DOMAIN}"
-    -ExchangeOrg "${EXCHANGE_ORG}"
-    -SecretLifetimeDays "${SECRET_LIFETIME_DAYS}"
-  )
-  if [[ "${PERSIST_ENV}" == "1" ]]; then
-    ps_args+=(-WriteEnv -EnvPath "${ENV_FILE}")
+  echo "[☤ caduceusmail] running Microsoft365 permission bootstrap (${BOOTSTRAP_AUTH_MODE} auth mode)"
+  if [[ "${SIMULATE_BOOTSTRAP}" == "1" ]]; then
+    bootstrap_out="$(simulate_bootstrap_json "${BOOTSTRAP_AUTH_MODE}")"
+  else
+    ps_args=(
+      -NoLogo -NoProfile
+      -File "${PS_BOOTSTRAP}"
+      -TenantId "${TENANT_ID}"
+      -ClientId "${CLIENT_ID}"
+      -OrganizationDomain "${ORG_DOMAIN}"
+      -ExchangeOrg "${EXCHANGE_ORG}"
+      -SecretLifetimeDays "${SECRET_LIFETIME_DAYS}"
+      -BootstrapAuthMode "${BOOTSTRAP_AUTH_MODE}"
+    )
+    if [[ "${PERSIST_ENV}" == "1" ]]; then
+      ps_args+=(-WriteEnv -EnvPath "${ENV_FILE}")
+    fi
+    if [[ "${PERSIST_SECRETS}" == "1" ]]; then
+      ps_args+=(-WriteSecrets)
+    fi
+    if [[ -n "${BOOTSTRAP_ADMIN_UPN}" ]]; then ps_args+=(-BootstrapAdminUpn "${BOOTSTRAP_ADMIN_UPN}"); fi
+    if [[ "${ROTATE_SECRET}" == "1" ]]; then ps_args+=(-RotateClientSecret); fi
+    if [[ "${SET_INTERNAL_RELAY}" == "1" ]]; then ps_args+=(-SetAcceptedDomainInternalRelay); fi
+    if [[ "${ENABLE_MATCH_SUBDOMAINS}" == "1" ]]; then ps_args+=(-EnableAcceptedDomainMatchSubdomains); fi
+    bootstrap_out="$(pwsh "${ps_args[@]}")"
   fi
-  if [[ "${ROTATE_SECRET}" == "1" ]]; then ps_args+=(-RotateClientSecret); fi
-  if [[ "${SET_INTERNAL_RELAY}" == "1" ]]; then ps_args+=(-SetAcceptedDomainInternalRelay); fi
-  if [[ "${ENABLE_MATCH_SUBDOMAINS}" == "1" ]]; then ps_args+=(-EnableAcceptedDomainMatchSubdomains); fi
-  bootstrap_out="$(pwsh "${ps_args[@]}")"
-  printf '%s\n' "${bootstrap_out}" | jq '{ok,steps,error,sign_in_events:(.sign_in_events // "unknown"),sso_mode:(.sso_mode // "default")}'
+  printf '%s\n' "${bootstrap_out}" | jq '{ok,simulated:(.simulated // false),steps,error,sign_in_events:(.sign_in_events // "unknown"),sso_mode:(.sso_mode // "default")}'
 fi
 
 stack_out='{"ok":true,"status":"skipped","results":[]}'
 if [[ "${SKIP_OPTIMIZE}" != "1" ]]; then
-  echo "[caduceusmail] running stack audit + optimization"
+  echo "[☤ caduceusmail] running stack audit + optimization"
   export ENTRA_TENANT_ID="${TENANT_ID}"
   export ENTRA_CLIENT_ID="${CLIENT_ID}"
   export EXCHANGE_DEFAULT_MAILBOX="${MAILBOX}"
@@ -322,11 +352,8 @@ if [[ "${SKIP_OPTIMIZE}" != "1" ]]; then
 fi
 
 mkdir -p "${INTEL_DIR}"
-chmod 700 "${INTEL_DIR}" 2>/dev/null || true
-bootstrap_safe="$(printf '%s\n' "${bootstrap_out}" | jq 'if type=="object" and .generatedSecret and (.generatedSecret|type)=="object" then .generatedSecret.value="[REDACTED]" else . end' 2>/dev/null || printf '%s\n' "${bootstrap_out}")"
-printf '%s\n' "${bootstrap_safe}" > "${INTEL_DIR}/caduceusmail-bootstrap-last.json"
+printf '%s\n' "${bootstrap_out}" > "${INTEL_DIR}/caduceusmail-bootstrap-last.json"
 printf '%s\n' "${stack_out}" > "${INTEL_DIR}/caduceusmail-stack-last.json"
-chmod 600 "${INTEL_DIR}/caduceusmail-bootstrap-last.json" "${INTEL_DIR}/caduceusmail-stack-last.json" 2>/dev/null || true
 
 printf '%s\n' "${stack_out}" | jq '{ok,status,results:[.results[]|{action,ok,domain,mailbox,graph_ready:(.credentials.graph_permissions.ready // .credential_plane.graph_permissions.ready),missing_graph:(.credentials.graph_permissions.graph_roles_missing // .credential_plane.graph_permissions.graph_roles_missing),missing_exchange_rbac:(.credentials.exchange_authorization.missing_roles // .credential_plane.exchange_authorization.missing_roles),dmarc:(.mail_plane.dmarc_summary.has_dmarc // .dns_plane.after_dmarc.has_dmarc // false)}]}' || true
-echo "[caduceusmail] complete"
+echo "[☤ caduceusmail] complete"

@@ -1,0 +1,12 @@
+__pycache__/
+.pytest_cache/
+*.pyc
+*.pyo
+*.swp
+.venv/
+.env
+caduceusmail.env
+.caduceusmail/
+dist/
+credentials/*.txt
+!.gitkeep
