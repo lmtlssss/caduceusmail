@@ -6,7 +6,7 @@ FABRIC_SCRIPT="${CADUCEUSMAIL_FABRIC_SCRIPT:-${SCRIPT_DIR}/email_alias_fabric_op
 DEFAULT_CREDENTIALS_DIR="$(cd -- "${SCRIPT_DIR}/.." && pwd)/credentials"
 CREDENTIALS_DIR="${CADUCEUSMAIL_CREDENTIALS_DIR:-${DEFAULT_CREDENTIALS_DIR}}"
 REPO_ROOT="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
-VERSION="$(cat "${REPO_ROOT}/VERSION" 2>/dev/null || echo 5.3.0)"
+VERSION="$(cat "${REPO_ROOT}/VERSION" 2>/dev/null || echo 5.3.3)"
 DEFAULT_ENV_FILE="${HOME}/.caduceusmail/.env"
 ENV_FILE="${CADUCEUSMAIL_ENV_FILE:-${DEFAULT_ENV_FILE}}"
 

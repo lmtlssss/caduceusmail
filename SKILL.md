@@ -5,7 +5,7 @@ homepage: https://github.com/lmtlssss/caduceusmail
 metadata: {"openclaw":{"emoji":"☤","skillKey":"caduceusmail","requires":{"bins":["bash","pwsh","python3","jq","rg"],"env":["ENTRA_TENANT_ID","ENTRA_CLIENT_ID","ENTRA_CLIENT_SECRET","EXCHANGE_DEFAULT_MAILBOX","EXCHANGE_ORGANIZATION","ORGANIZATION_DOMAIN","CLOUDFLARE_API_TOKEN","CLOUDFLARE_ZONE_ID"]}}}
 ---
 
-# ☤CaduceusMail 5.3.0
+# ☤CaduceusMail 5.3.3
 
 Inbox-reliability optimization engine: automates sender trust hardening, identity rotation, and scale-ready outreach/support flows designed to keep your mail out of junk.
 

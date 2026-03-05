@@ -1,4 +1,4 @@
-# Release notes for 5.3.0
+# Release notes for 5.3.3
 
 This release adds VPS-first login handoff while preserving the restored 4.2.0 product voice and metadata/disclosure coherence.
 
