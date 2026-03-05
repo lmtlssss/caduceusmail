@@ -2,10 +2,10 @@
 name: caduceusmail
 description: "☤CaduceusMail lets your OpenClaw automate an enterprise-level communications stack with one domain/mailbox combo."
 homepage: https://github.com/lmtlssss/caduceusmail
-metadata: {"openclaw":{"emoji":"☤","skillKey":"caduceusmail","requires":{"bins":["bash","python3","jq"],"env":["ENTRA_CLIENT_ID","ENTRA_TENANT_ID","EXCHANGE_DEFAULT_MAILBOX"]}}}
+metadata: {"openclaw":{"emoji":"☤","skillKey":"caduceusmail","requires":{"bins":["bash","pwsh","python3","jq","rg"],"env":["ENTRA_TENANT_ID","ENTRA_CLIENT_ID","ENTRA_CLIENT_SECRET","EXCHANGE_DEFAULT_MAILBOX","EXCHANGE_ORGANIZATION","ORGANIZATION_DOMAIN","CLOUDFLARE_API_TOKEN","CLOUDFLARE_ZONE_ID"]}}}
 ---
 
-# ☤CaduceusMail 5.1.0
+# ☤CaduceusMail 5.2.0
 
 ☤CaduceusMail turns one Microsoft 365 mailbox and one Cloudflare zone into an operator controlled mail fabric.
 
@@ -82,3 +82,18 @@ That smoke flow uses `--simulate-bootstrap`, so it does not require PowerShell o
 
 Prefer secret injection through `skills.entries.caduceusmail.env` over editing files in a sandbox. See `examples/openclaw.config.json5` and `docs/openclaw.md`.
 Persistence is opt-in through `--persist-env` and `--persist-secrets`.
+
+## Security and Privilege Disclosure
+
+This skill performs high-privilege operations by design:
+
+* Microsoft Graph app role grants
+* Exchange service principal and RBAC role assignments
+* Exchange accepted-domain tuning (optional flags)
+* Cloudflare DNS mutations for lane records
+
+Runtime state artifacts are written under `~/.caduceusmail/intel`. Env/secret persistence to `~/.caduceusmail/.env` is disabled by default and only occurs if you pass `--persist-env` or `--persist-secrets`.
+
+The PowerShell bootstrap may install Microsoft modules from PSGallery (`Install-Module`) when they are missing.
+
+External script resolution is disabled by default. It is only enabled if `CADUCEUSMAIL_ALLOW_EXTERNAL_SCRIPT_RESOLUTION=1` is explicitly set.

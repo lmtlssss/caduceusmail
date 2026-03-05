@@ -242,7 +242,7 @@ $resolvedAuthMode = Resolve-BootstrapAuthMode -RequestedMode $BootstrapAuthMode
 
 $summary = [ordered]@{
   ok = $false
-  toolVersion = "5.1.0"
+  toolVersion = "5.2.0"
   tenantId = $TenantId
   clientId = $ClientId
   organizationDomain = $OrganizationDomain

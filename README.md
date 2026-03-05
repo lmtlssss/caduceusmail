@@ -1,8 +1,8 @@
-# ☤CaduceusMail 5.1.0
+# ☤CaduceusMail 5.2.0
 
 ☤CaduceusMail is an OpenClaw skill bundle and operational repo for turning one Microsoft 365 mailbox plus one Cloudflare zone into a programmable mail control plane.
 
-Version 5.1.0 makes the repo feel like a real product instead of a clever pile of scripts. The bundle is now structured as a publishable ClawHub skill, the PowerShell bootstrap supports browser, device, and sandbox aware auto auth, the shell wrapper can simulate bootstrap for smoke tests, and the repo now ships with a doctor, tests, examples, release files, and a Graph backed probe sender.
+Version 5.2.0 keeps that shipping surface and adds scanner-facing coherence: full env/bin declarations in skill metadata, explicit privilege/persistence disclosure, and regression coverage to prevent metadata drift.
 
 ## What the stack controls
 
@@ -14,7 +14,7 @@ Version 5.1.0 makes the repo feel like a real product instead of a clever pile o
 
 That means alias lane creation, retirement, and verification happen as one operational flow instead of being scattered across separate admin panels.
 
-## What is in 5.1.0
+## What is in 5.2.0
 
 The repo now includes:
 
@@ -91,6 +91,22 @@ It reports:
 The preferred production path is to inject secrets through `skills.entries.<skill>.env` instead of editing files inside sandboxes.
 
 A sample config lives at `examples/openclaw.config.json5`.
+
+## Required env and trust boundaries
+
+For full capability, inject these keys in OpenClaw env or strict credentials files:
+
+* `ENTRA_TENANT_ID`
+* `ENTRA_CLIENT_ID`
+* `ENTRA_CLIENT_SECRET`
+* `EXCHANGE_DEFAULT_MAILBOX`
+* `EXCHANGE_ORGANIZATION`
+* `ORGANIZATION_DOMAIN`
+* `CLOUDFLARE_API_TOKEN`
+* `CLOUDFLARE_ZONE_ID`
+
+This skill performs high-impact tenant and DNS operations. It can persist env/secrets only when explicitly requested with `--persist-env` or `--persist-secrets`.
+The PowerShell bootstrap may install Microsoft modules from PSGallery if missing.
 
 ## Smoke tests
 

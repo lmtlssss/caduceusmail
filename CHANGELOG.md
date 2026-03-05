@@ -1,5 +1,17 @@
 # Changelog
 
+## 5.2.0
+
+Security and metadata coherence release for OpenClaw scan alignment.
+
+### Changed
+
+* expanded `SKILL.md` frontmatter `requires.env` to explicitly declare Entra secret and Cloudflare credentials used by runtime code paths
+* expanded `SKILL.md` frontmatter `requires.bins` to include `pwsh` and `rg` alongside existing runtime tools
+* added explicit privilege, persistence, module-install, and external-script-resolution disclosures in `SKILL.md`
+* documented canonical env keys and trust boundaries in `README.md` and `docs/openclaw.md`
+* added `tests/test_skill_frontmatter.py` coverage that enforces sensitive env and binary declarations
+
 ## 5.1.0
 
 This release turns ☤CaduceusMail into a full repository grade skill bundle.

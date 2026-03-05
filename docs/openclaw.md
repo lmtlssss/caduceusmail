@@ -6,6 +6,17 @@
 
 See `examples/openclaw.config.json5`.
 
+Canonical env keys for full runtime:
+
+* `ENTRA_TENANT_ID`
+* `ENTRA_CLIENT_ID`
+* `ENTRA_CLIENT_SECRET`
+* `EXCHANGE_DEFAULT_MAILBOX`
+* `EXCHANGE_ORGANIZATION`
+* `ORGANIZATION_DOMAIN`
+* `CLOUDFLARE_API_TOKEN`
+* `CLOUDFLARE_ZONE_ID`
+
 ## Shipping pattern
 
 The recommended path is split in two:
@@ -13,6 +24,11 @@ The recommended path is split in two:
 1. First trust ceremony with `--bootstrap-auth-mode device`.
 2. Daily headless operations with `--skip-m365-bootstrap` once `ENTRA_CLIENT_SECRET` is present.
 3. Keep persistence opt-in: use `--persist-env` and `--persist-secrets` only when you intentionally want disk writes.
+
+## Security posture
+
+The first bootstrap can install Microsoft modules from PSGallery using `Install-Module` if they are missing.
+The skill performs admin-level Graph/Exchange role assignment and Cloudflare DNS operations by design.
 
 ## Script resolution safety
 
